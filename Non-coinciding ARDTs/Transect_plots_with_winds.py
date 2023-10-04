@@ -39,6 +39,12 @@ dl = glob.glob(f'{mpath}{locs}*/*pv*.nc',recursive=True)
 #    clim = nds.mean('time')
 #    clim.to_netcdf('PV_climatology_1980_2020.nc')
 
+#open the surface pressure dataset and select the region 
+surf_pressure = xr.open_mfdataset(f'{mpath}e5.oper.an.sfc/200001/*sp*.nc')
+surf_pressure.coords['longitude'] = (surf_pressure.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
+surf_pressure=surf_pressure.sortby(surf_pressure.longitude) #sort the lons
+surf_pressure = surf_pressure.sel(longitude=slice(-15,30),latitude=slice(80,35))
+
 
 for f in flds:
     for vb,cvb in zip(vbls,cl_vbls):
@@ -48,22 +54,25 @@ for f in flds:
         clim = xr.open_mfdataset(f'Bash Runs/{cvb.upper()}_climatologies_west_europe/*.nc')
         clim = clim.sel(time=clim.time.dt.month.isin([1,2,12])).mean(tloc)
         
-        if f == 'guan_waliser':
+        if f != 'cascade_bard_v1':
                 
-            files = glob.glob(f'{reg}{vb}/{f}_{vb}/*19*.nc', recursive = True)
-            print(files[0]) #check for files in path 
-            one = xr.open_mfdataset(files,parallel=True,chunks={'time':1,'level':37}).sel(time=slice('1980-01','2000-01'))
+            files = glob.glob(f'{reg}{vb}/{f}_{vb}/*.nc', recursive = True)
+            #print(files[0]) #check for files in path 
+            #one = xr.open_mfdataset(files,parallel=True,chunks={'time':1,'level':37}).sel(time=slice('1980-01','2000-01'))
             
             
-            files = glob.glob(f'{reg}{vb}/{f}_{vb}/*20*.nc', recursive = True)
-            print(files[0])#check for files in path 
-            two = xr.open_mfdataset(files,parallel=True,chunks={'time':1,'level':37}).sel(time=slice('2000-01','2018-01'))
-            eval(f'{f}_data')[vb]  = xr.concat([two,one],dim='time')
-            
+            #files = glob.glob(f'{reg}{vb}/{f}_{vb}/*20*.nc', recursive = True)
+            #print(files[0])#check for files in path 
+            #two = xr.open_mfdataset(files,parallel=True,chunks={'time':1,'level':37}).sel(time=slice('2000-01','2018-01'))
+            #eval(f'{f}_data')[vb]  = xr.concat([two,one],dim='time')
+            one  =  [xr.open_dataset(f,chunks={'time':1,'level':37}) for f in files]
+            print('Done Loading Files \nConcatenating FIles')
+            eval(f'{f}_data')[vb]  = xr.concat(one,dim='time')
             
             if vb == 'pv':
                 
                 eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
+                
             elif vb == 'pot':
                
                 open_ds_main = eval(f'{f}_data')[vb]
@@ -170,10 +179,13 @@ if which_type == 'across' :
 
             dt = eval(f'{flds[tx]}_data')[vb].metpy.parse_cf().squeeze()
             eval(trs)[vb] =  cross_section(dt[vnms[vx]],start_point,end_point)#.set_coords(('lat', 'lon'))
+            
+            sp_dt = surf_pressure['SP'].metpy.parse_cf().squeeze()
+            sp_dt = cross_section(sp_dt,start_point,end_point)
 
 #this cross-section uses the selection based on latitude then, longitude
 elif which_type=='EW':
-    center_lat = 67.3 #latitudinal center of the system
+    center_lat = 67 #65 #latitudinal center of the system
     center_lon = 8# longitudinal center of the system
     lon_span = 21.5 # degrees east and west of the center
     for tx,trs in enumerate(tr_ardts):
@@ -183,18 +195,24 @@ elif which_type=='EW':
              eval(trs)[vb] =eval(f'{flds[tx]}_data')[vb][vnms[vx]].sel(latitude = center_lat, method='nearest').sel(
                 longitude = slice(center_lon - lon_span , center_lon + lon_span ))
     
+    sp_dt = surf_pressure.sel(latitude = center_lat, method='nearest').sel(
+                longitude = slice(center_lon - lon_span , center_lon + lon_span ))
+    
     cent = center_lat  #set the center for conversion to degrees/s
     
 #this cross-section uses the selection based on longitude then, latitude            
 elif which_type=='NS':
     center_lat = 55 #
-    center_lon = 12# + 360 # Bloomington, IN
+    center_lon = 15# 12 # + 360 # Bloomington, IN
     lat_span = 20 # degrees
     for tx,trs in enumerate(tr_ardts):
 
             for vx,vb in enumerate(vbls):
                 # extract the desired latitude
                 eval(trs)[vb] =eval(f'{flds[tx]}_data')[vb][vnms[vx]].sel(longitude = center_lon, method='nearest').sel(
+                    latitude = slice( center_lat + lat_span,center_lat - lat_span ))
+                
+    sp_dt = surf_pressure.sel(longitude = center_lon, method='nearest').sel(
                     latitude = slice( center_lat + lat_span,center_lat - lat_span ))
     
     cent = center_lon #set the center for conversion to degrees/s
@@ -246,7 +264,7 @@ for trs in tr_ardts:
             
             ds =  (eval(f'{trs}')[vb]/(10*100)).mean('time') 
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            
+            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
             #ax.set_ylim(1000,100)
             # Adjust the y-axis to be logarithmic
             
@@ -257,7 +275,7 @@ for trs in tr_ardts:
             
             ds =  (eval(f'{trs}')[vb]/(10e-6)).mean('time') #- (eval(f'{tr_ardts[0]}')[vb]/(10e-6)).mean('time')
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            
+            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
             #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
             
         elif vb == 'pot':
@@ -266,6 +284,7 @@ for trs in tr_ardts:
             
             print(ds)
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
+            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
             #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
             #(eval(f'{trs}')['z']/(10*1000)).mean('time') .plot.contour(ax=ax, color='grey', levels=np.arange(0,22,3), add_colorbar=False)
     
@@ -275,7 +294,7 @@ for trs in tr_ardts:
             print(eval(tr_ardts[0])[vb])
             ds =  eval(f'{trs}')[vb].mean('time') #- eval(tr_ardts[0])[vb].mean('time')
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            
+            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
             #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
             
             #ds =  (eval(f'{trs}')['z']/(10*1000)).mean('time') 
@@ -295,6 +314,9 @@ for trs in tr_ardts:
             -w_mbps.mean('time')[::3,::3], # vertical velocity (in units of the transect [add the negative sign b/c the axes are reversed])
         )
         
+        #print(sp_dt['SP'][tloc].values,sp_dt['SP'].mean('time').values)
+        #ax.plot(sp_dt['SP'][tloc].values,(sp_dt['SP']/100).mean('time').values,color='grey')
+        (sp_dt['SP']/100).mean('time').plot.contourf(ax=ax,color='white')
         #ax.set_yscale('symlog')
         ax.invert_yaxis()
         ax.set_yticklabels(np.arange(1000, 50, -100))

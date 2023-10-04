@@ -66,6 +66,8 @@ for yy in np.arange(start_year,end_year):
         open_ds_main = xr.open_mfdataset(files,chunks={'time':24})
         open_ds_main.coords['longitude'] = (open_ds_main.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
         open_ds_main=open_ds_main.sortby(open_ds_main.longitude) #sort the lons
+        
+        #change the longitude and latitude extent to use this script for different regions.
         open_ds_main = open_ds_main.sel(longitude = slice(-20,30),latitude=slice(80,35))#,parallel=True) #open data 
         
         in_data = list(split_by_chunks(open_ds_main))
@@ -76,7 +78,7 @@ for yy in np.arange(start_year,end_year):
         for idx,open_ds in enumerate(in_data):
             dataset=open_ds
     
-            save_path = f'{vb.upper()}_climatologies_west_europe/'
+            save_path = f'{vb.upper()}_climatologies_NorthAmerica/'
             if os.path.isdir(save_path)== False:
                 os.mkdir(save_path)
             print(f'Done with chunk calculation loop... \nSaving {vb} for {yy}')  
