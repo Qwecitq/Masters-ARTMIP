@@ -51,8 +51,8 @@ for f in flds:
         print(f' {f} {vb} {cvb}')
         
         #To obtain this, use the Climatologies.sh script in the Bash Runs folder to get the climatologies from the ERA5 hub
-        clim = xr.open_mfdataset(f'Bash Runs/{cvb.upper()}_climatologies_west_europe/*.nc')
-        clim = clim.sel(time=clim.time.dt.month.isin([1,2,12])).mean(tloc)
+        #clim = xr.open_mfdataset(f'Bash Runs/{cvb.upper()}_climatologies_west_europe/*.nc')
+        #clim = clim.sel(time=clim.time.dt.month.isin([1,2,12])).mean(tloc)
         
         if f != 'cascade_bard_v1':
                 
@@ -73,7 +73,7 @@ for f in flds:
             #subtract the longitudinal climatology from the data
             if vb == 'pv' or vb =='pot': #add variables that you want the anomaly to be calculated
                 
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim               
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim               
                 
             #elif vb == 'pot':
                
@@ -101,7 +101,7 @@ for f in flds:
             
             if vb == 'pv' or vb=='pot':
                                 
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim
                 
             #elif vb == 'pot':
 
@@ -192,7 +192,9 @@ elif which_type=='EW':
             # extract the desired latitude
              eval(trs)[vb] =eval(f'{flds[tx]}_data')[vb][vnms[vx]].sel(latitude = center_lat, method='nearest').sel(
                  longitude = slice(center_lon - lon_span , center_lon + lon_span ))
-    
+             
+             eval(trs)[vb] = eval(trs)[vb] - eval(trs)[vb].mean(dim=tloc)
+            
     sp_dt = surf_pressure.sel(latitude = center_lat, method='nearest').sel(
                 longitude = slice(center_lon - lon_span , center_lon + lon_span ))
     
@@ -209,6 +211,8 @@ elif which_type=='NS':
                 # extract the desired latitude
                 eval(trs)[vb] =eval(f'{flds[tx]}_data')[vb][vnms[vx]].sel(longitude = center_lon, method='nearest').sel(
                     latitude = slice( center_lat + lat_span,center_lat - lat_span ))
+                
+                eval(trs)[vb] = eval(trs)[vb] - eval(trs)[vb].mean(dim=tloc)
                 
     sp_dt = surf_pressure.sel(longitude = center_lon, method='nearest').sel(
                     latitude = slice( center_lat + lat_span,center_lat - lat_span ))
@@ -319,6 +323,6 @@ for trs in tr_ardts:
         ax.set_title(f' Composite Average {vb.upper()}')
         ct+=1
     #plt.show()
-        plt.savefig(f'transect images/{trs}_uv_{which_type}.png')
+        plt.savefig(f'transect images/{trs}_uv_{which_type}_copy.png')
 
 print('All processes completed')

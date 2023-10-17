@@ -5,8 +5,8 @@ exec(open('imports.py').read())
 from metpy.interpolate import cross_section
 
 reg = 'west_europe_'
-vbls = ['pv','z','pot']#,'u','v']
-cl_vbls = ['pv','z','pt']
+vbls = ['pv','q','pot']#,'u','v']
+cl_vbls = ['pv','q','pt']
 #################################################################################################################
 ################################ TAKE INPUT FOR FIELDS AND ARDT TRANSECT NAMES ################################
 #################################################################################################################
@@ -64,58 +64,56 @@ for f in flds:
             #files = glob.glob(f'{reg}{vb}/{f}_{vb}/*20*.nc', recursive = True)
             #print(files[0])#check for files in path 
             #two = xr.open_mfdataset(files,parallel=True,chunks={'time':1,'level':37}).sel(time=slice('2000-01','2018-01'))
-            #eval(f'{f}_data')[vb]  = xr.concat([two,one],dim='time')
+            #eval(f'{f}_data')[vb]  = xr.concat([two,one],dim='time') 
             one  =  [xr.open_dataset(f,chunks={'time':1,'level':37}) for f in files]
             print('Done Loading Files \nConcatenating FIles')
             eval(f'{f}_data')[vb]  = xr.concat(one,dim='time')
             
-            if vb == 'pv':
+            
+            #subtract the longitudinal climatology from the data
+            if vb == 'pv' or vb =='pot': #add variables that you want the anomaly to be calculated
                 
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim               
                 
-            elif vb == 'pot':
+            #elif vb == 'pot':
                
                 open_ds_main = eval(f'{f}_data')[vb]
                 open_ds_main.coords['longitude'] = (open_ds_main.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
                 open_ds_main=open_ds_main.sortby(open_ds_main.longitude) #sort the lons
                 eval(f'{f}_data')[vb] = open_ds_main.sel(longitude=slice(-15,30),latitude=slice(80,35))
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim
                 
             else:
                 
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
-            
-            if vb!='pot':
-                
+                #commenting this for the case of specific humidity.
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim    
                 open_ds_main = eval(f'{f}_data')[vb]
                 open_ds_main.coords['longitude'] = (open_ds_main.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
                 open_ds_main=open_ds_main.sortby(open_ds_main.longitude) #sort the lons
                 eval(f'{f}_data')[vb] = open_ds_main.sel(longitude=slice(-15,30),latitude=slice(80,35))
                 print(eval(f'{f}_data')[vb])
                 
-        else:
+        elif f == 'cascade_bard_v1':
             files = glob.glob(f'{reg}{vb}/{f}_{vb}/*.nc', recursive = True)
             print(files[0])#check for files in path
             eval(f'{f}_data')[vb]=xr.open_mfdataset(files,chunks={'time':1,'level':37},parallel=True)
             
             
-            if vb == 'pv':
-                
+            if vb == 'pv' or vb=='pot':
+                                
                 eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
                 
-            elif vb == 'pot':
+            #elif vb == 'pot':
 
                 open_ds_main = eval(f'{f}_data')[vb]
                 open_ds_main.coords['longitude'] = (open_ds_main.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
                 open_ds_main=open_ds_main.sortby(open_ds_main.longitude) #sort the lons
                 eval(f'{f}_data')[vb] = open_ds_main.sel(longitude=slice(-15,30),latitude=slice(80,35))
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim
                 
             else:
-                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] - clim
-            
-            if vb!='pot':
-
+                eval(f'{f}_data')[vb] = eval(f'{f}_data')[vb] #- clim
+            #if vb!='pot':
                 open_ds_main = eval(f'{f}_data')[vb]
                 print(open_ds_main)
                 open_ds_main.coords['longitude'] = (open_ds_main.coords['longitude']  + 180) % 360 - 180 #convert from 0-360 to -180 to 180
@@ -158,8 +156,8 @@ rd_tr = collections.defaultdict(list)
 #receive input from shell for the field names (ARDTS) and the transect ARDT. variable name
 flds=[sys.argv[1]]
 tr_ardts=[sys.argv[2]]
-vbls = ['pot','pv','z','u','w']
-vnms = ['PT','PV','Z','U','W']
+vbls = ['pot','pv','q','u','w']
+vnms = ['PT','PV','Q','U','W']
 
 #set the points for the line (lat, lon)
 #start_point = (45,0) #start point for cs
@@ -193,7 +191,7 @@ elif which_type=='EW':
         for vx,vb in enumerate(vbls):
             # extract the desired latitude
              eval(trs)[vb] =eval(f'{flds[tx]}_data')[vb][vnms[vx]].sel(latitude = center_lat, method='nearest').sel(
-                longitude = slice(center_lon - lon_span , center_lon + lon_span ))
+                 longitude = slice(center_lon - lon_span , center_lon + lon_span ))
     
     sp_dt = surf_pressure.sel(latitude = center_lat, method='nearest').sel(
                 longitude = slice(center_lon - lon_span , center_lon + lon_span ))
@@ -216,16 +214,20 @@ elif which_type=='NS':
                     latitude = slice( center_lat + lat_span,center_lat - lat_span ))
     
     cent = center_lon #set the center for conversion to degrees/s
-vbls = ['pot','z','pv']#,'u','v']
-vnms = ['PT','Z','PV']#,'U','V']
+vbls = ['pot','q','pv']#,'u','v']
+vnms = ['PT','Q','PV']#,'U','V']
 #tr_ardts = ['mdk_tr']# ['teca_tr']# ['gw_tr']# ['rd_tr']#
 #flds =['mundhenk_v2']#['cascade_bard_v1']#['guan_waliser']#['reid250']#
 flds=[sys.argv[1]]
 tr_ardts=[sys.argv[2]]
 
 #intervals = [np.arange(-4,4.5,0.5),  np.arange(-0.4,0.41,0.02), np.arange(-12,12,1) ] #set intervals for plot contours
-intervals = [np.arange(-10,10.1,1), np.arange(-10,10.1,1), np.arange(-0.5,0.55,0.05)]
-cmps = ['RdYlBu_r','bwr','bwr']
+from matplotlib.colors import LinearSegmentedColormap
+
+colors = [(0, 'blue'), (0.2, 'cornflowerblue'), (0.5, 'bisque'), (0.8, 'orange'), (1, 'red')]
+pot_cmap = LinearSegmentedColormap.from_list("custom_colormap", colors)
+intervals = [np.arange(-7,7.1,.5), np.arange(0,7.1,0.5), np.arange(-0.3,0.31,0.04)]
+cmps = ['bwr','YlOrRd','bwr']
 
 for trs in tr_ardts:
     ct = 0
@@ -264,42 +266,32 @@ for trs in tr_ardts:
             
             ds =  (eval(f'{trs}')[vb]/(10*100)).mean('time') 
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
-            #ax.set_ylim(1000,100)
-            # Adjust the y-axis to be logarithmic
-            
-            #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
            
+        if vb == 'q':    
             
+            ds =  (eval(f'{trs}')[vb]*1000).mean('time')
+            ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
+                             
         elif vb == 'pv':
             
             ds =  (eval(f'{trs}')[vb]/(10e-6)).mean('time') #- (eval(f'{tr_ardts[0]}')[vb]/(10e-6)).mean('time')
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
-            #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
+          
             
         elif vb == 'pot':
             
-            ds =  (eval(f'{trs}'))[vb].mean('time')  #- (eval(f'{tr_ardts[0]}')[vb]/(10e-6)).mean('time')
+            ds =  (eval(f'{trs}'))[vb].mean('time') #- 273.15 #- (eval(f'{tr_ardts[0]}')[vb]/(10e-6)).mean('time')
             
             print(ds)
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
-            #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
-            #(eval(f'{trs}')['z']/(10*1000)).mean('time') .plot.contour(ax=ax, color='grey', levels=np.arange(0,22,3), add_colorbar=False)
-    
+           
         else:
             
             #print(eval(f'{trs}')[vb].mean('time'))
             print(eval(tr_ardts[0])[vb])
             ds =  eval(f'{trs}')[vb].mean('time') #- eval(tr_ardts[0])[vb].mean('time')
             ds.plot.contourf(ax=ax, cmap= cmps[ct], levels=ivs, cbar_kwargs=dict(orientation='horizontal'))
-            #sp_dt['SP'].mean('time').plot(ax=ax,color='cyan')
-            #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
-            
-            #ds =  (eval(f'{trs}')['z']/(10*1000)).mean('time') 
-            #ds.plot.contour(ax=ax, cmap= cmps[ct], levels=ivs )#cbar_kwargs=dict(orientation='horizontal'))
-            #ax.quiver(u.index[::4],u.level[::4],u[::4,::4],v[::4,::4])
+           
         
         
         
@@ -314,17 +306,19 @@ for trs in tr_ardts:
             -w_mbps.mean('time')[::3,::3], # vertical velocity (in units of the transect [add the negative sign b/c the axes are reversed])
         )
         
-        #print(sp_dt['SP'][tloc].values,sp_dt['SP'].mean('time').values)
-        #ax.plot(sp_dt['SP'][tloc].values,(sp_dt['SP']/100).mean('time').values,color='grey')
-        (sp_dt['SP']/100).mean('time').plot.contourf(ax=ax,color='white')
-        #ax.set_yscale('symlog')
+        ax.plot(sp_dt['SP'][tloc].values,(sp_dt['SP']/100).mean('time').values,color='grey')
         ax.invert_yaxis()
+        x=sp_dt['SP'][tloc].values
+        y=(sp_dt['SP']/100).mean('time').values
+        ax.fill_between(x, y, 1000, interpolate=True, color='black', alpha=1)
+        
+        
         ax.set_yticklabels(np.arange(1000, 50, -100))
         ax.set_ylim(1000, 100)
         ax.set_yticks(np.arange(1000, 50, -100))
         ax.set_title(f' Composite Average {vb.upper()}')
         ct+=1
     #plt.show()
-        plt.savefig(f'transect images/trial{trs}_uv_{which_type}.png')
+        plt.savefig(f'transect images/{trs}_uv_{which_type}.png')
 
 print('All processes completed')

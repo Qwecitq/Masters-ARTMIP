@@ -78,7 +78,7 @@ for yy in np.arange(start_year,end_year):
         for idx,open_ds in enumerate(in_data):
             dataset=open_ds
     
-            save_path = f'{vb.upper()}_climatologies_NorthAmerica/'
+            save_path = f'{vb.upper()}_climatologies_west_europe/'
             if os.path.isdir(save_path)== False:
                 os.mkdir(save_path)
             print(f'Done with chunk calculation loop... \nSaving {vb} for {yy}')  
