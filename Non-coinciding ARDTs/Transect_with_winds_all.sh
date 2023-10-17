@@ -10,5 +10,5 @@ for ix in "${!flds[@]}"; do
     #printf "${flds[ix]} is for ${tr_ardts[ix]}"
     echo 'What cross section would you want? (options are NS, EW and across)'
     read whichtype
-    ./Transect_plots_with_winds.py ${flds[ix]} ${tr_ardts[ix]} $whichtype&
+    ./Transect_plots_with_winds-Copy1.py ${flds[ix]} ${tr_ardts[ix]} $whichtype&
     done

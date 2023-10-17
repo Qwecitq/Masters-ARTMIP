@@ -9,7 +9,7 @@ mkdir -p $dir
 #Loop through the years
 echo 'What is the variable name? (z, pv, t, etc )'
 read varb 
-for yy in {1980..1980}
+for yy in {1981..2019}
 
 do
     #Run the python script after
