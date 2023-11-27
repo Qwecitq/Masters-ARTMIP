@@ -5,11 +5,14 @@
 '''THIS SCRIPT SELECTS THE LANDFALLING REGIONS FOR ATMOSPHERIC RIVERS FOR THE INPUT ALGORITHMS'''
 
 exec(open('imports.py').read())
+import dask
 
 #### CHANGE ME ######
-reg='north_america'
+reg=sys.argv[1]
+
+#for reg in regs: 
 #input details from user
-ardt = str(sys.argv[1])                                               #name of ardt 
+#ardt = str(sys.argv[1])                                               #name of ardt 
 
 blat = sys.argv[2] ; blat = int(blat)                             #bottom latitude
 llon = sys.argv[3] ; llon = int(llon)                              #left longitude 
@@ -33,7 +36,7 @@ sv_path=sys.argv[7]                                    #location to save data
 #############################################################################################################
 #check if all inputs are right 
 
-print(f'ARDT name: {ardt} \nBottom Latitude: {blat} \nLeft Longitude: {llon} \nThreshold: {threshold} \nSeasons: {seas} \nSel Region Lon/Lat: {lfreg} ')
+print(f'Variable name: MCS \nBottom Latitude: {blat} \nLeft Longitude: {llon} \nThreshold: {threshold} \nSeasons: {seas} \nSel Region Lon/Lat: {lfreg} ')
 
 
 
@@ -66,7 +69,7 @@ months_idx = {mon:idx+1 for idx,mon in enumerate(months_in_year)}
 
 #select the period the user wants to select landfall for
 period = [months_idx.get(se) for se in seas]
-    
+
 
 #############################################################################################################
 ############################################## Load data ######################################################
@@ -74,56 +77,68 @@ period = [months_idx.get(se) for se in seas]
 
 
 #load files 
-files= glob.glob(f'{mpath}{ardt}/*.nc*',recursive=True)
-print(files)
-data = xr.open_mfdataset(files,parallel=True).sel(lon=slice(llon,rlon), lat=slice(blat,tlat))
+#from dask.distributed import Client
+#c = Client(n_workers=25, threads_per_worker=1)
 
-if ardt=='cascade_bard_v1':
-    newdata = xr.Dataset()
-    newdata['ar_binary_tag'] = data['ar_binary_tag']
-    data = newdata
-    
-data = data.isel(time=data.time.dt.month.isin(period))
-if ardt=='guan_waliser':
-    data = data['ar_binary_tag']
-    ds = xr.Dataset()
-    
-    #for guan and waliser, you need to select the time slices in 10 years interval manually or you can just attach a for loop to do that!
-    ds['ar_binary_tag'] = data.sel(time=slice('1980','1989')) #rechunk data time axis to be optimal
-    data = ds.chunk({'time':728})
- #print out data to inspect the selection is correct 
-print(data)
+mcs_path = '/global/cfs/cdirs/m4374/catalogues/raw_catalogue_files/observations/MCS/mcs_global/mcstracking_orig/'
 
-#############################################################################################################
-######################################## Set Threshold for selection  ##############################################
-#############################################################################################################
+varbs = ['cloudtracknumber','pcptracknumber','tb','precipitation']
+dpts = []
 
-#select the region for the landfall test 
+for yx in range(2000,2004):
 
-selection_box = data.sel(lon=slice(lfreg[0], lfreg[0]+selection_box_width),
-                        lat=slice( lfreg[1],  lfreg[1]+selection_box_width))
+    if yx == 2000:
+        suff1 = '0601.0000'
+        suff2 = '0101.0000'
+    else: 
+        suff1 = '0101.0000'
+        suff2 = '0101.0000'
 
-print(selection_box)
-#check if the threshold criteria is met within the selected region 
+    mcs_ps = glob.glob(f'{mcs_path}{yx}{suff1}_{yx+1}{suff2}/*.nc', recursive=True)
+    print('Done tracing paths')
 
-sel_box=selection_box.chunk({'time':1})
-selected_times= sel_box.time.where(sel_box.mean(['lon','lat']) >= threshold,drop=True)['time'].values
+    datasets = [dask.delayed(xr.open_mfdataset)(mcs_ps)]
 
-print(len(selected_times))
-selected_data = data.sel(time=selected_times)
+    print(f'Loading datasets for {yx} ...')
+    dataset = datasets[0].compute()
 
-#############################################################################################################
-########################################### Begin Saving Data  #################################################
-#############################################################################################################
+    data = dataset.chunk({'time':50}).sel(time=dataset.time.dt.month.isin(period))
 
-print(f'Started saving for {ardt} ...')
-if os.path.isdir(sv_path)==False:
-    os.mkdir(sv_path)
+    print(f'Done loading and chunking data for {yx}')
 
-final_path = f'{sv_path}/{reg}_{ardt}_phd/'
+    #############################################################################################################
+    ######################################## Set Threshold for selection  ##############################################
+    #############################################################################################################
 
-if os.path.isdir(final_path)==False:
-    os.mkdir(final_path)
-    
-saver.ch_paths(selected_data, f'{final_path}',f'{ardt}-{reg}-ARs.gt.8','ar_binary_tag')
-print('Done ...')
+    #select the region for the landfall test 
+
+    selection_box = data['cloudtracknumber'].sel(lon=slice(lfreg[0], lfreg[0]+selection_box_width),
+                            lat=slice( lfreg[1],  lfreg[1]+selection_box_width))
+
+    print(selection_box)
+    #check if the threshold criteria is met within the selected region 
+
+    sel_box=selection_box.chunk({'time':1})
+    selected_times= sel_box.time.where(sel_box.mean(['lon','lat']) > threshold,drop=True)['time'].values
+
+
+    print(f'Done with selection for {yx} \n{len(selected_times)}')
+    selected_data = data.sel(time=selected_times)
+
+    #############################################################################################################
+    ########################################### Begin Saving Data  #################################################
+    #############################################################################################################
+
+    print(f'Started saving for {yx} ...')
+    if os.path.isdir(sv_path)==False:
+        os.mkdir(sv_path)
+
+    final_path = f'{sv_path}/{reg}_MCS_phd/'
+
+    if os.path.isdir(final_path)==False:
+        os.mkdir(final_path)
+
+    vbs = list(data.variables)[3:-3]
+    saver.ch_paths(selected_data, f'{final_path}',f'MCS.gt.0.',vbs,sv_data_times=None)    
+    print(f'Done with {yx} ...')
+print('Done with all years')
